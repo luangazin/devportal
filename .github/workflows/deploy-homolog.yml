@@ -31,7 +31,7 @@ jobs:
         ADMIN_UI_VERSION=$(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal-admin-ui | jq -r '.available_versions | max | .version')
           
         else
-          if [ curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r "any(.available_versions[]; .version==\"${{ github.event.inputs.admin_ui_chart_version }}\")" ]; then
+          if [ $(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r "any(.available_versions[]; .version==\"${{ github.event.inputs.admin_ui_chart_version }}\")") == "true" ]; then
             ADMIN_UI_VERSION=${{ github.event.inputs.admin_ui_chart_version }}
           else 
             echo "Admin UI Version ${{ github.event.inputs.admin_ui_chart_version }} not found."
@@ -42,8 +42,8 @@ jobs:
         if [ -z "${{ github.event.inputs.devportal_chart_version }}" ]; then
           DEVPORTAL_VERSION=$(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r '.available_versions | max | .version')
         else
-          if [ curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r "any(.available_versions[]; .version==\"${{ github.event.inputs.devportal_chart_version }}\")" ]; then
-            DEVPORTAL_VERSION=${{ github.event.inputs.devportal_chart_version }}
+          if [ $(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r "any(.available_versions[]; .version==\"${{ github.event.inputs.devportal_chart_version }}\")") == "true" ]; then
+           DEVPORTAL_VERSION=${{ github.event.inputs.devportal_chart_version }}
           else 
             echo "Devportal Version ${{ github.event.inputs.devportal_chart_version }} not found."
             exit 1;
