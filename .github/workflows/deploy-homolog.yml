@@ -6,6 +6,7 @@ on:
       branch:
         description: 'Branch to use'
         required: true
+        type: branch
         default: 'develop'
 
 jobs:
