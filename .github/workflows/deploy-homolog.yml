@@ -41,8 +41,8 @@ jobs:
         else
         DEVPORTAL_VERSION=${{ github.event.inputs.devportal_chart_version }}
         fi
-        echo "ADMIN_UI_VERSION=$(cat $ADMIN_UI_VERSION')" >> $GITHUB_ENV
-        echo "DEVPORTAL_VERSION=$(cat $DEVPORTAL_VERSION')" >> $GITHUB_ENV
+        echo "ADMIN_UI_VERSION=$(cat $ADMIN_UI_VERSION)" >> $GITHUB_ENV
+        echo "DEVPORTAL_VERSION=$(cat $DEVPORTAL_VERSION)" >> $GITHUB_ENV
     
     - name: print
       run: |
