@@ -12,6 +12,8 @@ env:
   PACKER_VERSION: "1.10.1"
   AWS_ROLE_ARN: "arn:aws:iam::829720130733:role/Github_Action_IDP"
   AWS_REGION: "us-east-1"
+  ADMIN_UI_VERSION: ""
+  DEVPORTAL_VERSION: ""
 
 permissions:
   id-token: write
