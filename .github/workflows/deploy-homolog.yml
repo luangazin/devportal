@@ -1,142 +1,47 @@
-name: Build Deploy Devportal Homolog
+name: Packer AMI Builder
 
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to use'
+      devportal_chart_version:
+        description: 'Devportal chart version'
         required: true
-        type: branch
-        default: 'develop'
+      admin_ui_chart_version:
+        description: 'Admin UI chart version'
+        required: true
+      
+env:
+  PACKER_VERSION: "1.10.1"
+  AWS_ROLE_ARN: "arn:aws:iam::829720130733:role/Github_Action_IDP"
+  AWS_REGION: "us-east-1"
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  #Getting requided versions for next steps
-  requirements:
-    # runs-on: [self-hosted, macOS, ARM64]
+  build:
     runs-on: ubuntu-latest
-    outputs:
-      app_version: ${{ env.app_version }}
-      chart_version: ${{ env.chart_version }}
-      node_version: ${{ env.node_version }}
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Getting versions
-        run: |
-          echo "app_version=homolog" >> $GITHUB_ENV
-          echo "chart_version=$(yq e '.version' chart/Chart.yaml)" >> $GITHUB_ENV
-          echo "node_version=$(cat .nvmrc | grep -o '[0-9]*')" >> $GITHUB_ENV
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: asdf
+      run: |
+        #check if github.event.inputs.admin_ui_chart_version is null or empty
+        if [ -z "${{ github.event.inputs.admin_ui_chart_version }}" ]; then
+        ADMIN_UI_VERSION=$(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal-admin-ui | jq -r '.available_versions | max | .version')
+          
+        else
+        ADMIN_UI_VERSION=${{ github.event.inputs.admin_ui_chart_version }}
+        fi
 
-  #parallel build for x64 and amr64
-  buildDevportal:
-    needs: [requirements]
-    strategy:
-      matrix:
-        # os: [ubuntu-latest, [self-hosted, macOS, ARM64]]
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    env:
-      NODE_VERSION: ${{ needs.requirements.outputs.node_version }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
-        with:
-          node-version: ${{ env.node_version }}
-          cache: yarn
-      
-      - name: Getting arch
-        run: echo "ARCH=$(echo ${{ runner.arch }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-      
-      - name: Building Devportal${{ runner.arch }}
-        run: |
-          yarn install --frozen-lockfile
-          yarn tsc
-          yarn build
-          jq --arg version "$(jq -r .version package.json)" '.version = $version' devportal.json > temp.json && mv temp.json devportal.json
-      
-      - name: Setup keychain
-        if: runner.os == 'macOS'
-        run: security unlock-keychain -p ${{ secrets.KEYCHAIN_PASSWORD }}
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Publish to Docker Hub
-        run: |
-          docker build . -t veecode/devportal-bundle-${{env.ARCH}}:${{ needs.requirements.outputs.app_version }} -f packages/backend/Dockerfile
-          # docker tag veecode/devportal-bundle-${{env.ARCH}}:${{ needs.requirements.outputs.app_version }} veecode/devportal-bundle-${{env.ARCH}}:latest
-          docker push veecode/devportal-bundle-${{env.ARCH}}:${{ needs.requirements.outputs.app_version }}
-          # docker push veecode/devportal-bundle-${{env.ARCH}}:latest
- 
-  publishManifestDocker:
-    needs: [requirements, buildDevportal]
-    # runs-on: [self-hosted, macOS, ARM64]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup keychain
-        if: runner.os == 'macOS'
-        run: security unlock-keychain -p ${{ secrets.KEYCHAIN_PASSWORD }}      
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-      - name: Create/Publish version ${{ needs.requirements.outputs.app_version }} manifest
-        uses: Noelware/docker-manifest-action@master # or use a pinned version in the Releases tab
-        with:
-            inputs: veecode/devportal-bundle:${{ needs.requirements.outputs.app_version }}
-            # images: veecode/devportal-bundle-arm64:${{ needs.requirements.outputs.app_version }},veecode/devportal-bundle-x64:${{ needs.requirements.outputs.app_version }}
-            images: veecode/devportal-bundle-x64:${{ needs.requirements.outputs.app_version }}
-            amend: true
-            push: true
-
-      # - name: Create/Publish version latest manifest
-      #   uses: Noelware/docker-manifest-action@master # or use a pinned version in the Releases tab
-      #   with:
-      #       inputs: veecode/devportal-bundle:latest
-      #       # images: veecode/devportal-bundle-arm64:latest,veecode/devportal-bundle-x64:latest
-      #       images: veecode/devportal-bundle-x64:latest
-      #       amend: true
-      #       push: true
-
-      - name: Clear Docker image for macOS runner
-        if: runner.os == 'macOS'
-        run: |
-          docker rmi veecode/devportal-bundle-${{env.ARCH}}:${{ needs.requirements.outputs.app_version }}
-          # docker rmi veecode/devportal-bundle-${{env.ARCH}}:latest
-
-  installDevportalHomolog:
-   runs-on: ubuntu-latest
-   needs: [requirements, publishManifestDocker]
-   steps:
-     - uses: actions/checkout@v4
-     - name: GitHub Action for DigitalOcean - doctl
-       uses: digitalocean/action-doctl@v2.3.0
-       with:
-         token: ${{ secrets.DO_TOKEN }}
-     - name: Install Helm 
-       shell: bash
-       run: |
-         curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-     - name: Helm update chart
-       shell: bash
-       run: |
-         doctl kubernetes cluster kubeconfig save ${{ secrets.CLUSTER_NAME }}
-         yq e ".image.tag = \"$(jq -r .version package.json)\"" -i ./chart/values.yaml
-         yq e ".appVersion = \"$(jq -r .version package.json)\"" -i ./chart/Chart.yaml
-         if helm ls -A | grep -q "platform-devportal-homolog"; then
-           NAMESPACE=$(helm ls -A | grep platform-devportal-homolog | awk -F' ' '{print $2}')
-           helm get values platform-devportal-homolog -n $NAMESPACE | tail -n +2 > devportal.yaml
-           yq e ".image.tag = \"${{ needs.requirements.outputs.app_version }}\"" -i ./devportal.yaml
-           yq e ".image.pullPolicy = \"Always\"" -i ./devportal.yaml
-           helm upgrade platform-devportal-homolog --install --recreate-pods --values ./devportal.yaml ./chart -n $NAMESPACE
-         else 
-           echo "Installation of Platform devportal (Homolog) not found on ${{ secrets.CLUSTER_NAME }}"
-           exit 1
-         fi
+        if [ -z "${{ github.event.inputs.devportal_chart_version }}" ]; then
+        DEVPORTAL_VERSION=$(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r '.available_versions | max | .version')
+          
+        else
+        DEVPORTAL_VERSION=${{ github.event.inputs.devportal_chart_version }}
+        fi
+        echo "ADMIN_UI_VERSION: $ADMIN_UI_VERSION"
+        echo "DEVPORTAL_VERSION: $DEVPORTAL_VERSION"
