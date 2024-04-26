@@ -5,10 +5,8 @@ on:
     inputs:
       devportal_chart_version:
         description: 'Devportal chart version'
-        required: true
       admin_ui_chart_version:
         description: 'Admin UI chart version'
-        required: true
       
 env:
   PACKER_VERSION: "1.10.1"
