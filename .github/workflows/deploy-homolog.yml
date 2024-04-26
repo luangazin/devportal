@@ -46,5 +46,5 @@ jobs:
     
     - name: print
       run: |
-      echo "ADMIN_UI_VERSION: ${{ env.ADMIN_UI_VERSION }}"
-      echo "DEVPORTAL_VERSION: ${{ env.DEVPORTAL_VERSION }}"
+        echo "ADMIN_UI_VERSION: ${{ env.ADMIN_UI_VERSION }}"
+        echo "DEVPORTAL_VERSION: ${{ env.DEVPORTAL_VERSION }}"
