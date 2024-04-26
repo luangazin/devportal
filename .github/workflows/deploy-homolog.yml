@@ -25,21 +25,29 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: asdf
+    - name: Checking version
       run: |
-        #check if github.event.inputs.admin_ui_chart_version is null or empty
         if [ -z "${{ github.event.inputs.admin_ui_chart_version }}" ]; then
         ADMIN_UI_VERSION=$(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal-admin-ui | jq -r '.available_versions | max | .version')
           
         else
-        ADMIN_UI_VERSION=${{ github.event.inputs.admin_ui_chart_version }}
+          if [ curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r "any(.available_versions[]; .version==\"${{ github.event.inputs.admin_ui_chart_version }}\")" ]
+            ADMIN_UI_VERSION=${{ github.event.inputs.admin_ui_chart_version }}
+          else 
+            echo "Admin UI Version ${{ github.event.inputs.admin_ui_chart_version }} not found."
+            exit 1;
+          fi
         fi
 
         if [ -z "${{ github.event.inputs.devportal_chart_version }}" ]; then
-        DEVPORTAL_VERSION=$(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r '.available_versions | max | .version')
-          
+          DEVPORTAL_VERSION=$(curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r '.available_versions | max | .version')
         else
-        DEVPORTAL_VERSION=${{ github.event.inputs.devportal_chart_version }}
+          if [ curl -s https://artifacthub.io/api/v1/packages/helm/veecode-platform/devportal | jq -r "any(.available_versions[]; .version==\"${{ github.event.inputs.devportal_chart_version }}\")" ]
+            DEVPORTAL_VERSION=${{ github.event.inputs.devportal_chart_version }}
+          else 
+            echo "Devportal Version ${{ github.event.inputs.devportal_chart_version }} not found."
+            exit 1;
+          fi
         fi
         echo "ADMIN_UI_VERSION=$(echo $ADMIN_UI_VERSION)" >> $GITHUB_ENV
         echo "DEVPORTAL_VERSION=$(echo $DEVPORTAL_VERSION)" >> $GITHUB_ENV
